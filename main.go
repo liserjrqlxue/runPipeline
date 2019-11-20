@@ -62,7 +62,7 @@ func runParallel(parallel string) {
 	chanList := make(chan int, len(array))
 	for i, item := range array {
 		go func(i int, item string) { // parallel
-			runParallel(item)
+			runPipeline(item)
 			chanList <- i
 		}(i, item)
 	}
