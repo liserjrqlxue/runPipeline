@@ -25,6 +25,7 @@ func main() {
 }
 
 func runPipeline(pipeline string) {
+	log.Println("runPipeline:" + pipeline)
 	var suffix = getSuffix(pipeline)
 	switch suffix {
 	case "sh":
@@ -38,14 +39,17 @@ func runPipeline(pipeline string) {
 
 func getSuffix(str string) string {
 	array := strings.Split(str, ".")
+	log.Println("getSuffix(" + str + ")->" + array[len(array)-1])
 	return array[len(array)-1]
 }
 
 func runScript(script string) {
+	log.Println("runScript:" + script)
 	CheckErr(RunCmd("bash", script), "run "+script+" error!")
 }
 
 func runStep(step string) {
+	log.Println("runStep:" + step)
 	array := File2Array(step)
 	for _, item := range array {
 		runPipeline(item)
@@ -53,6 +57,7 @@ func runStep(step string) {
 }
 
 func runParallel(parallel string) {
+	log.Println("runParallel:" + parallel)
 	array := File2Array(parallel)
 	chanList := make(chan int, len(array))
 	for i, item := range array {
