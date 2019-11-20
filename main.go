@@ -13,7 +13,14 @@ var (
 		"",
 		"main pipeline to run",
 	)
+	threshold = flag.Int(
+		"threshold",
+		12,
+		"threshold to used",
+	)
 )
+
+var throttle = make(chan bool)
 
 func main() {
 	flag.Parse()
@@ -21,7 +28,11 @@ func main() {
 		flag.Usage()
 		log.Fatal("-pipeline is required!")
 	}
+	throttle = make(chan bool, *threshold)
 	runPipeline(*pipeline)
+	for i := 0; i < *threshold; i++ {
+		throttle <- true
+	}
 }
 
 func runPipeline(pipeline string) {
@@ -44,8 +55,10 @@ func getSuffix(str string) string {
 }
 
 func runScript(script string) {
+	throttle <- true
 	log.Println("runScript:" + script)
 	CheckErr(RunCmd("bash", script), "run "+script+" error!")
+	<-throttle
 }
 
 func runStep(step string) {
