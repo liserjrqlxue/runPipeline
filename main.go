@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
 var (
@@ -47,75 +46,54 @@ func main() {
 }
 
 func runPipeline(pipeline, flag string, lines chan<- string, rank int) {
-	//log.Println("runPipeline:" + pipeline)
 	var suffix = getSuffix(pipeline)
+	array := File2Array(pipeline)
+	if flag == "" && rank == 0 {
+		flag = "main"
+	} else {
+		flag += strconv.Itoa(rank)
+	}
+	log.Printf("%s\t%s", flag, pipeline)
 	switch suffix {
 	case "sh":
-		runScript(pipeline, flag, lines, rank)
+		throttle <- true
+		//time.Sleep(1 * time.Second)
+		CheckErr(RunCmd("bash", pipeline), "run "+pipeline+" error!")
+		lines <- "\"" + pipeline + "\""
+		<-throttle
 	case "step":
-		runStep(pipeline, flag, lines, rank)
+		flag += ".step"
+		lines <- "\"" + pipeline + "\"->\"" + strings.Join(array, "\"->\"") + "\""
+		for i, item := range array {
+			runPipeline(item, flag, lines, i)
+		}
 	case "parallel":
-		runParallel(pipeline, flag, lines, rank)
+		flag += ".para"
+		chanList := make(chan int, len(array))
+		for _, item := range array {
+			lines <- "\"" + pipeline + "\"->\"" + item + "\""
+		}
+		for i, item := range array {
+			go func(i int, item string) { // parallel
+				runPipeline(item, flag, lines, i)
+				chanList <- i
+			}(i, item)
+			rank++
+		}
+		for range array {
+			<-chanList
+		}
+	default:
+		log.Printf("%s\t%s\tSkip!", flag, pipeline)
+		return
 	}
+	//log.Printf("%s\t%s\tDone", flag, pipeline)
 }
 
 func getSuffix(str string) string {
 	array := strings.Split(str, ".")
 	//log.Println("getSuffix(" + str + ")->" + array[len(array)-1])
 	return array[len(array)-1]
-}
-
-func runScript(script, flag string, lines chan<- string, rank int) {
-	throttle <- true
-	log.Printf("%s%d:\t%s", flag, rank, script)
-	time.Sleep(1 * time.Second)
-	//CheckErr(RunCmd("bash", script), "run "+script+" error!")
-	log.Printf("%s%d:\t%s\tDone", flag, rank, script)
-	lines <- "\"" + script + "\""
-	<-throttle
-}
-
-func runStep(step, flag string, lines chan<- string, rank int) {
-	if flag == "" && rank == 0 {
-		flag = "step"
-		log.Printf("%s:\t%s", flag, step)
-	} else {
-		flag += strconv.Itoa(rank)
-		log.Printf("%s:\t%s", flag, step)
-		flag += ".step"
-	}
-
-	array := File2Array(step)
-	lines <- "\"" + step + "\"->\"" + strings.Join(array, "\"->\"") + "\""
-	for i, item := range array {
-		runPipeline(item, flag, lines, i)
-	}
-	log.Printf("%s:\t%s\tDone", flag, step)
-}
-
-func runParallel(parallel, flag string, lines chan<- string, rank int) {
-	if flag == "" && rank == 0 {
-		flag = "para"
-		log.Printf("%s:\t%s", flag, parallel)
-	} else {
-		flag += strconv.Itoa(rank)
-		log.Printf("%s:\t%s", flag, parallel)
-		flag += ".para"
-	}
-	array := File2Array(parallel)
-	chanList := make(chan int, len(array))
-	for i, item := range array {
-		go func(i int, item string) { // parallel
-			lines <- "\"" + parallel + "\"->\"" + item + "\""
-			runPipeline(item, flag, lines, i)
-			chanList <- i
-		}(i, item)
-		rank++
-	}
-	for range array {
-		<-chanList
-	}
-	log.Printf("%s:\t%s\tDone", flag, parallel)
 }
 
 func createGraphviz(prefix string, lines <-chan string) {
