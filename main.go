@@ -6,6 +6,7 @@ import (
 	. "github.com/liserjrqlxue/simple-util"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -59,7 +60,7 @@ func runPipeline(pipeline, flag string, lines chan<- string, rank int) {
 		throttle <- true
 		//time.Sleep(1 * time.Second)
 		CheckErr(RunCmd("bash", pipeline), "run "+pipeline+" error!")
-		lines <- "\"" + pipeline + "\""
+		lines <- "\"" + pipeline + "\" [label=" + filepath.Base(pipeline) + "]"
 		<-throttle
 	case "step":
 		flag += ".step"
