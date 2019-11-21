@@ -60,20 +60,45 @@ func runPipeline(pipeline, flag string, lines chan<- string, rank int) {
 		throttle <- true
 		//time.Sleep(1 * time.Second)
 		CheckErr(RunCmd("bash", pipeline), "run "+pipeline+" error!")
-		lines <- "\"" + pipeline + "\" [label=\"" + filepath.Base(pipeline) + "\"]"
+		lines <- "\"" + pipeline + "\" [shape=box label=\"" + filepath.Base(pipeline) + "\"]"
 		<-throttle
 	case "step":
+		lines <- "\"" + pipeline + "\" [style=filled color=blue label=\"" + filepath.Base(pipeline) + "\"]"
+		lines <- fmt.Sprintf(
+			"subgraph cluster_%s{\n"+
+				"label=\"%s\"\n"+
+				"color=blue\n"+
+				"node [style=filled]\n"+
+				"\"%s\"[shape=Mdiamond label=Start]\n"+
+				"\"%s\"[shape=Msquare label=End]",
+			strings.Replace(flag, ".", "_", -1), pipeline, pipeline+".Start", pipeline+".End",
+		)
+		lines <- "\"" + pipeline + ".Start\"->\"" + strings.Join(array, "\"->\"") + "\"->\"" + pipeline + ".End\""
+		lines <- "}"
+		lines <- fmt.Sprintf("\"%s\"->\"%s\"", pipeline, pipeline+".Start")
 		flag += ".step"
-		lines <- "\"" + pipeline + "\"->\"" + strings.Join(array, "\"->\"") + "\""
 		for i, item := range array {
 			runPipeline(item, flag, lines, i)
 		}
 	case "parallel":
+		lines <- "\"" + pipeline + "\" [style=filled color=red label=\"" + filepath.Base(pipeline) + "\"]"
+		lines <- fmt.Sprintf(
+			"subgraph cluster_%s{\n"+
+				"label=\"%s\"\n"+
+				"style=filled\n"+
+				"color=lightgrey\n"+
+				"node [style=filled,color=white]\n"+
+				"\"%s\"[shape=Mdiamond label=Start]\n"+
+				"\"%s\"[shape=Msquare label=End]",
+			strings.Replace(flag, ".", "_", -1), pipeline, pipeline+".Start", pipeline+".End",
+		)
+		for _, item := range array {
+			lines <- fmt.Sprintf("\"%s\"->\"%s\"->\"%s\"", pipeline+".Start", item, pipeline+".End")
+		}
+		lines <- "}"
+		lines <- fmt.Sprintf("\"%s\"->\"%s\"", pipeline, pipeline+".Start")
 		flag += ".para"
 		chanList := make(chan int, len(array))
-		for _, item := range array {
-			lines <- "\"" + pipeline + "\"->\"" + item + "\""
-		}
 		for i, item := range array {
 			go func(i int, item string) { // parallel
 				runPipeline(item, flag, lines, i)
